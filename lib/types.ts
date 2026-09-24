@@ -15,10 +15,10 @@ export type PublicComment = {
 };
 
 export type SearchCoverage = {
-  mode: "post-url";
-  requestedPosts: number;
+  mode: "post-url" | "discovery";
+  requestedSources: number;
+  discoveredPosts: number;
   scannedPosts: number;
   provider: string;
-  completeForScope: boolean;
   note: string;
 };
