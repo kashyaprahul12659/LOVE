@@ -7,40 +7,62 @@ A provider-based Next.js MVP for finding publicly visible Instagram comments by 
 - Username normalization and validation
 - Public Instagram post/Reel URL validation
 - Real Apify adapter for public post comment collection
+- Profile/hashtag discovery adapter using Apify's Instagram scraper
+- Bounded discovery -> post collection -> username matching
 - Recursive reply normalization
 - Exact case-insensitive username matching
 - De-duplication by comment ID
-- Coverage metadata that states exactly what was searched
-- Mock fallback when no provider token is configured
+- Coverage metadata that states the actual search scope
+- Mock fallback for direct post searches when no provider token is configured
 - No login, private-post, DM, follower, or hidden-account access
 
-The current search contract is intentionally **post-scoped**:
+## Search modes
 
-1. Enter an Instagram username.
-2. Enter a public Instagram post or Reel URL.
-3. The configured provider fetches visible comments/replies for that URL.
-4. The app filters them to the requested username.
+### Direct posts
 
-This is the first reliable building block for the broader product. A global "find every comment this username has made" search still needs a separate **post discovery engine**; Instagram does not expose that as an official user-centric comment search endpoint.
+Enter a username plus one or more public post/Reel URLs. The app fetches the provider-visible comments for those posts and returns only comments whose author matches the target username.
+
+### Discovery seeds
+
+Enter a username plus one or more public discovery sources. A source can be:
+
+- `@profile`
+- `profile:profile`
+- `#hashtag`
+
+The app expands up to 5 sources into a bounded set of public posts (currently 12 posts per source), then passes those posts through the same comment provider.
+
+This is intentionally **not** described as an Instagram-wide search. A username-centric global comment index is not available from Instagram's official API, and complete coverage would require scanning an infeasible amount of public content.
 
 ## Live provider
 
-The live adapter uses Apify's maintained Instagram Comments Scraper. Apify documents a synchronous run endpoint and inputs including `directUrls` and `resultsLimit`, and its output includes commenter usernames, comment text, timestamps, IDs, replies, and post/comment URLs.
+The live adapters use Apify's maintained actors:
 
-Create a `.env.local` file:
+- `apify~instagram-comment-scraper` for comments/replies
+- `apify~instagram-api-scraper` for profile/hashtag -> post discovery
+
+Apify documents the comment scraper's `directUrls` + `resultsLimit` input and a synchronous run endpoint. Its Instagram API Scraper also supports `directUrls`, `resultsType: "posts"`, and `resultsLimit` for post discovery.
+
+Create `.env.local`:
 
 ```bash
 cp .env.example .env.local
 ```
 
-Then set:
+Set your token:
 
 ```env
 APIFY_API_TOKEN=your_token
-APIFY_INSTAGRAM_COMMENTS_ACTOR=apify~instagram-comment-scraper
 ```
 
-Install and run:
+Optional actor overrides:
+
+```env
+APIFY_INSTAGRAM_COMMENTS_ACTOR=apify~instagram-comment-scraper
+APIFY_INSTAGRAM_DISCOVERY_ACTOR=apify~instagram-api-scraper
+```
+
+Then:
 
 ```bash
 npm install
@@ -49,18 +71,29 @@ npm run build
 npm run dev
 ```
 
+Open the app, enter the username you are looking for, and add either direct post URLs or discovery sources.
+
 ## Architecture
 
 ```text
 UI
   -> /api/comments
-      -> InstagramCommentProvider
-          -> ApifyInstagramCommentProvider
-          -> MockCommentProvider (local development)
+      -> optional discovery
+          -> InstagramPostDiscoveryProvider
+              -> ApifyInstagramPostDiscoveryProvider
+      -> comment collection
+          -> InstagramCommentProvider
+              -> ApifyInstagramCommentProvider
+              -> MockCommentProvider
+      -> normalize + username match
 ```
 
-The provider interface keeps future discovery and alternate vendors separate from the UI and route layer.
+The provider interfaces keep discovery vendors and collection vendors independent of the UI and route layer.
+
+## Important scope limitation
+
+The product can search public comments within the posts it receives. It cannot truthfully guarantee "every comment this username has ever made" because there is no complete user-centric public comment index and discovery is bounded by the selected sources and provider limits.
 
 ## Next milestone
 
-Add a discovery queue that can generate candidate public post URLs from explicitly supplied accounts/hashtags, then send those URLs through the same comment provider and matching pipeline. Do not claim complete Instagram-wide coverage unless the search scope actually supports it.
+Move long-running discovery/collection into a job queue and persist normalized posts/comments in PostgreSQL. That will make broad searches asynchronous, resumable, de-duplicated across runs, and measurable by search scope.
