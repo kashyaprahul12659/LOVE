@@ -1,0 +1,4 @@
+import type {PublicComment} from "../types";
+export type CommentSearchOptions={username:string;limit?:number};
+export interface InstagramCommentProvider{searchComments(options:CommentSearchOptions):Promise<PublicComment[]>;}
+export class MockCommentProvider implements InstagramCommentProvider{async searchComments({username,limit=20}:CommentSearchOptions){const normalized=username.replace(/^@/,"").trim().toLowerCase();if(!normalized)return[];return[{id:"demo-1",username:normalized,text:"Development result — connect a real authorized/public-data provider to search live comments.",createdAt:new Date().toISOString(),postUrl:"https://www.instagram.com/",postCaption:"Development placeholder",source:"mock"}].slice(0,limit);}}
