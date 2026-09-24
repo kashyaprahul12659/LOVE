@@ -1,0 +1,1 @@
+export type PublicComment={id:string;username:string;text:string;createdAt:string;postUrl:string;postCaption?:string;source:string};
